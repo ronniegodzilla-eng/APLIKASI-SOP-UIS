@@ -118,19 +118,94 @@ export default function App() {
 
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/generate-sop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          namaSop: meta.judul,
-          unitKerja: meta.unit,
-          deskripsi: promptAI,
-        }),
+      const { GoogleGenAI, Type } = await import('@google/genai');
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("GEMINI_API_KEY tidak dikonfigurasi");
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
+
+      const systemInstruction = `Anda adalah asisten ahli penjaminan mutu di Universitas Ibnu Sina. Tugas Anda adalah membuat draft Standar Operasional Prosedur (SOP) berdasarkan deskripsi pengguna. Output harus berformat JSON dengan struktur berikut, sesuai pedoman resmi:
+{
+"tujuan": "Tujuan SOP",
+"ruang_lingkup": "Batasan dan kondisi",
+"ringkasan": "Ringkasan prosedur",
+"definisi": "Definisi istilah terkait",
+"landasan_hukum": "Aturan yang berlaku",
+"keterkaitan": "Keterkaitan dengan proses bisnis/SOP lain",
+"kualifikasi_pelaksana": "Kompetensi yang dibutuhkan",
+"mutu_baku": [{"indikator": "", "standar": "", "instrumen": ""}],
+"perlengkapan": "Peralatan/sistem informasi",
+"peringatan_resiko": "Dampak jika tidak dijalankan dan solusinya",
+"formulir": "Formulir yang digunakan",
+"uraian_prosedur": [{"no": "", "kegiatan": "", "pelaksana": "", "kelengkapan": "", "output": ""}],
+"mermaid_chart": "Kode Mermaid.js bertipe flowchart TD atau LR dengan swimlane untuk memvisualisasikan uraian prosedur"
+}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: `Buatkan draft SOP untuk:\nNama SOP: ${meta.judul || 'Belum ditentukan'}\nUnit Kerja: ${meta.unit || 'Belum ditentukan'}\nDeskripsi: ${promptAI}`,
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              tujuan: { type: Type.STRING },
+              ruang_lingkup: { type: Type.STRING },
+              ringkasan: { type: Type.STRING },
+              definisi: { type: Type.STRING },
+              landasan_hukum: { type: Type.STRING },
+              keterkaitan: { type: Type.STRING },
+              kualifikasi_pelaksana: { type: Type.STRING },
+              mutu_baku: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    indikator: { type: Type.STRING },
+                    standar: { type: Type.STRING },
+                    instrumen: { type: Type.STRING }
+                  }
+                }
+              },
+              perlengkapan: { type: Type.STRING },
+              peringatan_resiko: { type: Type.STRING },
+              formulir: { type: Type.STRING },
+              uraian_prosedur: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    no: { type: Type.STRING },
+                    kegiatan: { type: Type.STRING },
+                    pelaksana: { type: Type.STRING },
+                    waktu: { type: Type.STRING },
+                    kelengkapan: { type: Type.STRING },
+                    output: { type: Type.STRING }
+                  }
+                }
+              },
+              mermaid_chart: { type: Type.STRING }
+            }
+          }
+        }
       });
 
-      if (!response.ok) throw new Error('Gagal menghasilkan draft dari server');
+      const text = response.text;
+      if (!text) {
+        throw new Error("Empty response from Gemini");
+      }
 
-      const data = await response.json();
+      let jsonStr = text.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '');
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '');
+      }
+
+      const data = JSON.parse(jsonStr);
       
       // Update Meta
       setMeta(prev => ({
@@ -318,15 +393,94 @@ export default function App() {
                       onClick={async () => {
                         setIsGenerating(true);
                         try {
-                          const response = await fetch('/api/complete-sop', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ meta }),
+                          const { GoogleGenAI, Type } = await import('@google/genai');
+                          const apiKey = process.env.GEMINI_API_KEY;
+                          if (!apiKey) {
+                            throw new Error("GEMINI_API_KEY tidak dikonfigurasi");
+                          }
+                          
+                          const ai = new GoogleGenAI({ apiKey });
+
+                          const systemInstruction = `Anda adalah asisten ahli penjaminan mutu di Universitas Ibnu Sina. Tugas Anda adalah melengkapi draft Standar Operasional Prosedur (SOP) berdasarkan data yang sudah ada. Output harus berformat JSON dengan struktur berikut:
+{
+"tujuan": "Tujuan SOP",
+"ruang_lingkup": "Batasan dan kondisi",
+"ringkasan": "Ringkasan prosedur",
+"definisi": "Definisi istilah terkait",
+"landasan_hukum": "Aturan yang berlaku",
+"keterkaitan": "Keterkaitan dengan proses bisnis/SOP lain",
+"kualifikasi_pelaksana": "Kompetensi yang dibutuhkan",
+"mutu_baku": [{"indikator": "", "standar": "", "instrumen": ""}],
+"perlengkapan": "Peralatan/sistem informasi",
+"peringatan_resiko": "Dampak jika tidak dijalankan dan solusinya",
+"formulir": "Formulir yang digunakan",
+"uraian_prosedur": [{"no": "", "kegiatan": "", "pelaksana": "", "kelengkapan": "", "output": ""}],
+"mermaid_chart": "Kode Mermaid.js bertipe flowchart TD atau LR dengan swimlane untuk memvisualisasikan uraian prosedur"
+}`;
+
+                          const response = await ai.models.generateContent({
+                            model: "gemini-3.1-pro-preview",
+                            contents: `Lengkapi draft SOP ini:\nNama SOP: ${meta.judul}\nUnit Kerja: ${meta.unit}\nTujuan: ${meta.tujuan}\nRuang Lingkup: ${meta.ruangLingkup}\nRingkasan: ${meta.ringkasan}\nDefinisi: ${meta.definisi}\nLandasan Hukum: ${meta.landasanHukum}\nKeterkaitan: ${meta.keterkaitan}\nKualifikasi Pelaksana: ${meta.kualifikasiPelaksana}\nPerlengkapan: ${meta.perlengkapan}\nPeringatan/Resiko: ${meta.peringatanResiko}\nFormulir: ${meta.formulir}\n\nTolong buatkan uraian prosedur (langkah-langkah) dan pelaksana (aktor) yang sesuai dengan informasi di atas.`,
+                            config: {
+                              systemInstruction,
+                              responseMimeType: "application/json",
+                              responseSchema: {
+                                type: Type.OBJECT,
+                                properties: {
+                                  tujuan: { type: Type.STRING },
+                                  ruang_lingkup: { type: Type.STRING },
+                                  ringkasan: { type: Type.STRING },
+                                  definisi: { type: Type.STRING },
+                                  landasan_hukum: { type: Type.STRING },
+                                  keterkaitan: { type: Type.STRING },
+                                  kualifikasi_pelaksana: { type: Type.STRING },
+                                  mutu_baku: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                      type: Type.OBJECT,
+                                      properties: {
+                                        indikator: { type: Type.STRING },
+                                        standar: { type: Type.STRING },
+                                        instrumen: { type: Type.STRING }
+                                      }
+                                    }
+                                  },
+                                  perlengkapan: { type: Type.STRING },
+                                  peringatan_resiko: { type: Type.STRING },
+                                  formulir: { type: Type.STRING },
+                                  uraian_prosedur: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                      type: Type.OBJECT,
+                                      properties: {
+                                        no: { type: Type.STRING },
+                                        kegiatan: { type: Type.STRING },
+                                        pelaksana: { type: Type.STRING },
+                                        waktu: { type: Type.STRING },
+                                        kelengkapan: { type: Type.STRING },
+                                        output: { type: Type.STRING }
+                                      }
+                                    }
+                                  },
+                                  mermaid_chart: { type: Type.STRING }
+                                }
+                              }
+                            }
                           });
 
-                          if (!response.ok) throw new Error('Gagal melengkapi draft dari server');
+                          const text = response.text;
+                          if (!text) {
+                            throw new Error("Empty response from Gemini");
+                          }
 
-                          const data = await response.json();
+                          let jsonStr = text.trim();
+                          if (jsonStr.startsWith('```json')) {
+                            jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '');
+                          } else if (jsonStr.startsWith('```')) {
+                            jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '');
+                          }
+
+                          const data = JSON.parse(jsonStr);
                           
                           // Update Meta
                           setMeta(prev => ({
