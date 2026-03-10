@@ -86,7 +86,7 @@ async function startServer() {
       }
       
       apiKey = apiKey.trim().replace(/^["']|["']$/g, '');
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ AIzaSyBuWJk9uNqnyhpqYTLM1jP6gaJEd5idooo });
 
       const systemInstruction = `Anda adalah asisten ahli penjaminan mutu di Universitas Ibnu Sina. Tugas Anda adalah membuat draft Standar Operasional Prosedur (SOP) berdasarkan deskripsi pengguna. Output harus berformat JSON dengan struktur berikut, sesuai pedoman resmi:
 {
